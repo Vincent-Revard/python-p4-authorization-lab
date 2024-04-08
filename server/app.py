@@ -19,13 +19,15 @@ db.init_app(app)
 
 api = Api(app)
 
-def login_required(f):
-    def decorated(*args, **kwargs):
+ROUTES_REQUIRE_LOGIN = ["/members_only_articles", "/members_only_articles/<int:id>"]
+
+@app.before_request
+def check_login_status():
+    if any(
+        request.path.startswith(route.split("<")[0]) for route in ROUTES_REQUIRE_LOGIN
+    ):
         if not session.get("user_id"):
             return {"message": "Unauthorized"}, 401
-        return f(*args, **kwargs)
-
-    return decorated
 
 class ClearSession(Resource):
 
@@ -95,7 +97,6 @@ class CheckSession(Resource):
 
 class MemberOnlyIndex(Resource):
 
-    @login_required
     def get(self):
         stmt = select(Article).where(Article.is_member_only == True)
         result = db.session.execute(stmt)
@@ -105,7 +106,6 @@ class MemberOnlyIndex(Resource):
 
 class MemberOnlyArticle(Resource):
 
-    @login_required
     def get(self, id):
         stmt = select(Article).where(Article.id == id)
         result = db.session.execute(stmt)
