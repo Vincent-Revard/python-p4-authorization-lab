@@ -3,6 +3,7 @@
 from flask import Flask, make_response, jsonify, request, session
 from flask_migrate import Migrate
 from flask_restful import Api, Resource
+from sqlalchemy import select
 
 from models import db, Article, User
 
@@ -17,6 +18,14 @@ migrate = Migrate(app, db)
 db.init_app(app)
 
 api = Api(app)
+
+def login_required(f):
+    def decorated(*args, **kwargs):
+        if not session.get("user_id"):
+            return {"message": "Unauthorized"}, 401
+        return f(*args, **kwargs)
+
+    return decorated
 
 class ClearSession(Resource):
 
@@ -85,14 +94,26 @@ class CheckSession(Resource):
         return {}, 401
 
 class MemberOnlyIndex(Resource):
-    
+
+    @login_required
     def get(self):
-        pass
+        stmt = select(Article).where(Article.is_member_only == True)
+        result = db.session.execute(stmt)
+        articles = [article.to_dict() for article in result.scalars().all()]
+        return articles, 200
+
 
 class MemberOnlyArticle(Resource):
-    
+
+    @login_required
     def get(self, id):
-        pass
+        stmt = select(Article).where(Article.id == id)
+        result = db.session.execute(stmt)
+        if article := result.scalars().first():
+            return article.to_dict(), 200
+        else:
+            return {"message": "Article not found"}, 404
+
 
 api.add_resource(ClearSession, '/clear', endpoint='clear')
 api.add_resource(IndexArticle, '/articles', endpoint='article_list')
